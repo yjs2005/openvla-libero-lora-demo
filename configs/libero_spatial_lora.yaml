@@ -1,0 +1,36 @@
+# LIBERO spatial LoRA configuration placeholder.
+# Do not use this for training until official OpenVLA/LIBERO commands are confirmed.
+
+project:
+  name: openvla-libero-lora-demo
+  phase: libero_spatial_lora
+
+runtime:
+  seed: 42
+  device: cuda
+  precision: bf16_or_fp16
+
+data:
+  benchmark: libero
+  suite: spatial
+  dataset_path: null
+  download_if_missing: false
+
+model:
+  base_model: openvla
+  checkpoint_path: null
+  load_remote_checkpoint: false
+
+lora:
+  enabled: true
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+
+training:
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_steps: 100
+  learning_rate: 0.0001
+  save_dir: results/logs/lora_debug
+  run_training: false

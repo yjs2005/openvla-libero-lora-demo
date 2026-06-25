@@ -1,0 +1,27 @@
+# Small debug configuration placeholder.
+# This file is for future smoke tests only and should not trigger downloads or training.
+
+project:
+  name: openvla-libero-lora-demo
+  phase: small_debug
+
+runtime:
+  seed: 42
+  device: cuda_if_available
+  precision: fp16_or_bf16_if_supported
+
+data:
+  benchmark: libero
+  suite: spatial
+  max_episodes: 1
+  download_if_missing: false
+
+model:
+  name: openvla
+  checkpoint_path: null
+  load_remote_checkpoint: false
+
+evaluation:
+  batch_size: 1
+  save_actions: true
+  output_dir: results/logs

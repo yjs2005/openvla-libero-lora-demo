@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs and generated outputs
+results/logs/*
+results/videos/*
+results/figures/*
+!results/logs/.gitkeep
+!results/videos/.gitkeep
+!results/figures/.gitkeep
+
+# Large local assets
+data/
+datasets/
+checkpoints/
+models/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
