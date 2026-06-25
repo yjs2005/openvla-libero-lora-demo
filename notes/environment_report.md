@@ -1,6 +1,6 @@
 ﻿# Environment Report
 
-- Generated at: 2026-06-26T00:56:54
+- Generated at: 2026-06-26T01:26:30
 - Project root: `D:\42系保研准备\openvla-libero-lora-demo`
 
 ## System
@@ -12,7 +12,7 @@
 | CPU | 13th Gen Intel(R) Core(TM) i5-13500HX |
 | CPU cores / logical CPUs | 20 logical CPUs |
 | RAM total | 15.73 GB |
-| RAM available | 5.11 GB |
+| RAM available | 4.65 GB |
 | Disk total | 160.17 GB |
 | Disk free | 52.12 GB |
 
@@ -35,13 +35,13 @@
 
 | GPU | Name | Memory total | Memory used | Memory free | Driver version |
 | --- | --- | --- | --- | --- | --- |
-| 0 | NVIDIA GeForce RTX 4060 Laptop GPU | 8188 MiB (8.00 GB) | 311 MiB (0.30 GB) | 7647 MiB (7.47 GB) | 551.76 |
+| 0 | NVIDIA GeForce RTX 4060 Laptop GPU | 8188 MiB (8.00 GB) | 266 MiB (0.26 GB) | 7692 MiB (7.51 GB) | 551.76 |
 
 <details>
 <summary>Raw nvidia-smi output</summary>
 
 ```text
-Fri Jun 26 00:56:50 2026       
+Fri Jun 26 01:26:25 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 551.76                 Driver Version: 551.76         CUDA Version: 12.4     |
 |-----------------------------------------+------------------------+----------------------+
@@ -50,7 +50,7 @@ Fri Jun 26 00:56:50 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 4060 ...  WDDM  |   00000000:01:00.0 Off |                  N/A |
-| N/A   61C    P0             21W /   86W |     312MiB /   8188MiB |     13%      Default |
+| N/A   57C    P0             21W /   87W |     266MiB /   8188MiB |     13%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
                                                                                          

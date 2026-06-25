@@ -29,6 +29,8 @@ data/
 datasets/
 checkpoints/
 models/
+external/
+.hf_token
 *.ckpt
 *.pt
 *.pth
