@@ -1,213 +1,168 @@
-# OpenVLA LIBERO LoRA Demo
+# OpenVLA + LIBERO 机器人操作任务评估与 LoRA 微调流程验证
 
-This repository is a robotics research portfolio project for reproducing OpenVLA inference evaluation on LIBERO manipulation tasks, then extending it with small-scale LoRA fine-tuning, action-sequence visualization, and experiment tracking.
+## 项目概述
 
-## Current Status
+本项目围绕 Vision-Language-Action 模型 OpenVLA 在 LIBERO 机器人操作任务中的评估与小规模微调展开。项目在 H800 80GB 云端环境中完成 OpenVLA 官方 LIBERO-Spatial checkpoint 的加载、MuJoCo/robosuite 仿真 rollout、视频保存与日志记录，并进一步基于 LIBERO-Spatial RLDS 数据完成 LoRA 微调流程验证。
 
-- Phase 1 completed: repository setup and local environment check.
-- Phase 2 completed: cloud setup scripts, official OpenVLA notes, LIBERO evaluation templates, LoRA templates, and action visualization utilities.
-- Phase 3 completed: official checkpoint LIBERO-Spatial OSMesa baseline evaluation.
-- Phase 4 completed at small scale: LoRA-50 training, checkpoint saving, merged model loading, and OSMesa evaluation loop.
-- Current recommendation: pause larger training, inspect the LoRA-50 failure case, and tune conservatively before any longer run.
+本项目的重点不是提出新模型，也不是声称刷新性能，而是完整打通“模型加载 -> 仿真评估 -> 可视化记录 -> RLDS/TFDS 数据读取 -> LoRA 训练 -> adapter 与 merged model 保存 -> 保存模型再评估”的工程闭环。
 
-## Experiment Progress
+## 我完成了什么
 
-- H800 cloud OpenVLA + LIBERO environment setup completed.
-- Official `openvla-7b-finetuned-libero-spatial` checkpoint downloaded and loaded successfully on the cloud instance.
-- EGL rendering was unstable for longer rollouts, with native aborts around 51 action steps.
-- OSMesa rendering was verified as the stable evaluation path.
-- Official checkpoint OSMesa baseline completed on `libero_spatial`:
-  - `1 task x 3 trials`: `3/3` success.
-  - `3 tasks x 3 trials`: `9/9` success.
-  - No native abort, EGL, or `read_pixels` crash in the OSMesa baseline runs.
-  - Rollout MP4 files were saved under `artifacts/rollouts/`.
-- Current baseline log bundle: `artifacts/openvla_official_baseline_logs_latest.tar.gz`.
-- LoRA-50 small training completed on top of the official LIBERO-Spatial checkpoint:
-  - `max_steps=50`, `batch_size=4`, `lora_rank=32`, `learning_rate=5e-4`, `image_aug=True`.
-  - Adapter saved remotely, about `463M`.
-  - Merged HuggingFace model saved remotely, about `15G`.
-  - `1 task x 1 trial`: `1/1` success, `83` action steps.
-  - `3 tasks x 3 trials`: `8/9` success.
-  - No OOM, CUDA crash, native abort, `read_pixels`, traceback, or core dump occurred.
-- Current LoRA-50 log bundle: `artifacts/openvla_lora50_pipeline_logs_latest.tar.gz`.
-- Latest rollout MP4 files are kept locally under `artifacts/rollouts/` and are intentionally ignored by Git.
+- 在 H800 80GB 云端环境中搭建 OpenVLA + LIBERO 评估环境，并成功加载官方 `openvla-7b-finetuned-libero-spatial` checkpoint。
+- 排查 LIBERO 长 rollout 中的 EGL/native abort 问题，确定 OSMesa 是当前云端环境下更稳定的渲染路径。
+- 完成 official checkpoint 在 LIBERO-Spatial 小规模任务子集上的 baseline 评估：`3 tasks ? 3 trials = 9/9 success`。
+- 准备 `libero_spatial_no_noops` RLDS/TFDS 数据，验证 OpenVLA `finetune.py` 可以读取数据并插入 LoRA adapter。
+- 完成 LoRA no-save dry-run、save-smoke、保存模型再评估，以及 50-step LoRA 小规模训练。
+- 记录训练指标、success rate、action steps、失败案例视频和实验日志，形成可追溯的实验闭环。
 
-## LoRA-50 Results
+## 实验结果总览
 
-This LoRA experiment is a small workflow validation run on top of the official LIBERO-Spatial checkpoint. It is not a full fine-tuning reproduction from the base OpenVLA checkpoint.
+| 实验阶段 | 设置 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| Official checkpoint baseline | `libero_spatial`, OSMesa, 3 tasks ? 3 trials | 9/9 success | 作为本项目评估基线 |
+| LoRA no-save dry-run | `max_steps=2`, `batch_size=1`, `save_steps=1000` | 成功 | 验证数据加载、LoRA 插入、forward/backward、optimizer step |
+| LoRA save-smoke | `max_steps=2`, `save_steps=1` | 成功 | 保存 adapter 和 merged HF model |
+| Save-smoke eval | 1 task ? 1 trial | success=True, 74 steps | 验证保存模型可被评估脚本加载 |
+| LoRA-50 | `max_steps=50`, `batch_size=4`, `lora_rank=32` | 训练完成 | adapter 和 merged model 均保存 |
+| LoRA-50 eval | 3 tasks ? 3 trials | 8/9 success | 完成微调后评估闭环，但未超过 official baseline |
 
-| Model / run | Training setting | Evaluation setting | Result | Interpretation |
-| --- | --- | --- | --- | --- |
-| Official checkpoint baseline | Official `openvla-7b-finetuned-libero-spatial` | `libero_spatial`, OSMesa, `3 tasks x 3 trials` | `9/9` success | Reference baseline for this project |
-| LoRA-50 | `max_steps=50`, `batch_size=4`, `lora_rank=32`, `learning_rate=5e-4`, `image_aug=True` | Same 3-task OSMesa subset | `8/9` success | Completed LoRA training/saving/loading/eval loop, but did not exceed the official baseline |
+## Official Checkpoint Baseline
 
-LoRA-50 per-task result:
+baseline 使用官方 `openvla-7b-finetuned-libero-spatial` checkpoint，不做额外训练。评估环境为 LIBERO-Spatial、OSMesa 渲染、3 个 task、每个 task 3 次 trial。
 
 | Task | Success rate | Action steps |
+| --- | ---: | --- |
+| black bowl between plate and ramekin ? plate | 3/3 | 81, 107, 77 |
+| black bowl next to ramekin ? plate | 3/3 | 113, 95, 140 |
+| black bowl from table center ? plate | 3/3 | 206, 103, 101 |
+
+总体结果为 `9/9 success`。该结果作为后续 LoRA 小实验的比较基线。
+
+## LoRA-50 小规模微调实验
+
+LoRA-50 是在 official LIBERO-Spatial checkpoint 上继续做的极小步数 LoRA 训练，不是从 base OpenVLA 开始的完整微调复现实验。
+
+训练设置：
+
+| 参数 | 值 |
+| --- | --- |
+| base checkpoint | `openvla-7b-finetuned-libero-spatial` |
+| dataset | `libero_spatial_no_noops` |
+| max steps | 50 |
+| batch size | 4 |
+| LoRA rank | 32 |
+| learning rate | `5e-4` |
+| image augmentation | True |
+| adapter size | about 463M |
+| merged HF model size | about 15G |
+
+baseline 与 LoRA-50 对比：
+
+| 模型 / 实验 | 训练设置 | 评估设置 | 成功率 | 结论 |
+| --- | --- | --- | --- | --- |
+| Official checkpoint baseline | 官方 `openvla-7b-finetuned-libero-spatial`，无额外训练 | OSMesa, 3 tasks ? 3 trials | 9/9 | 本项目 baseline |
+| LoRA-50 | 在 official checkpoint 上继续 LoRA 50 steps | 同一 3-task 评估子集 | 8/9 | 完成 LoRA 训练、保存、加载、评估闭环，但未超过 baseline |
+
+任务级对比：
+
+| Task | Official baseline | LoRA-50 | LoRA-50 action steps |
+| --- | ---: | ---: | --- |
+| black bowl between plate and ramekin ? plate | 3/3 | 3/3 | 83, 74, 89 |
+| black bowl next to ramekin ? plate | 3/3 | 3/3 | 112, 115, 132 |
+| black bowl from table center ? plate | 3/3 | 2/3 | 220, 115, 96 |
+
+LoRA-50 没有超过 official checkpoint baseline。该结果说明，在已经针对 LIBERO-Spatial fine-tuned 的 checkpoint 上继续做极小步数 LoRA，可能会扰动已有策略。因此本项目将 LoRA-50 主要作为训练与评估闭环验证，而不是性能提升结论。
+
+## 可视化结果
+
+### 成功率对比
+
+![success rate comparison](docs/figures/success_rate_comparison.png)
+
+### LoRA-50 各 episode 动作步数
+
+![lora50 action steps](docs/figures/lora50_action_steps.png)
+
+### Rollout 动图展示
+
+原始 rollout MP4 保存在本地 `artifacts/rollouts/`。由于视频文件不纳入 Git 版本管理，README 中展示为轻量 GIF 动图。
+
+#### Official checkpoint baseline 成功案例
+
+![baseline success](docs/media/baseline_success.gif)
+
+#### LoRA-50 成功案例
+
+![lora50 success](docs/media/lora50_success.gif)
+
+#### LoRA-50 失败案例
+
+![lora50 failure](docs/media/lora50_failure.gif)
+
+| 类型 | 说明 |
+| --- | --- |
+| Official baseline success | 官方 checkpoint 成功完成抓取放置任务 |
+| LoRA-50 success | LoRA-50 保存模型可被加载并完成 rollout |
+| LoRA-50 failure case | episode 7，220 action steps 后未成功，用于分析小步数 LoRA 对已有策略的扰动 |
+
+## 关键工程问题与解决
+
+| 问题 | 现象 | 处理 |
 | --- | --- | --- |
-| Pick up the black bowl between the plate and the ramekin and place it on the plate | `3/3` | 83, 74, 89 |
-| Pick up the black bowl next to the ramekin and place it on the plate | `3/3` | 112, 115, 132 |
-| Pick up the black bowl from table center and place it on the plate | `2/3` | 220, 115, 96 |
+| HuggingFace 访问不稳定 | checkpoint 下载失败或连接中断 | 使用 HF mirror 和本地缓存，避免重复下载大模型 |
+| FlashAttention 缺失 | 模型加载时报 attention backend 相关错误 | 切换到 PyTorch SDPA attention backend |
+| TensorFlow GPU kernel 不兼容 | H800 上 TensorFlow 报 kernel 问题 | 使用 CPU TensorFlow，保留 PyTorch CUDA 负责模型推理与训练 |
+| cuDNN conv2d engine 异常 | vision backbone forward 报错 | 禁用 cuDNN 路径绕过该问题 |
+| EGL 渲染不稳定 | 长 rollout 中 native abort / core dumped | 切换到 OSMesa 渲染路径，并完成 100-step、200-step、full rollout 稳定性验证 |
+| wandb/protobuf 异常 | `finetune.py` 顶层 import 失败 | 对 wandb 做 safe import，并在 disabled 模式下把训练指标打印到 stdout |
 
-Episode 7 in the LoRA-50 `3 tasks x 3 trials` run is the failure case: task 3, trial 1, `success=False`, 220 action steps. This should be analyzed before increasing training length.
+这些问题覆盖了模型加载、仿真渲染、训练日志、数据读取和云端 GPU 环境适配，体现了本项目的主要工程训练价值。
 
-Do not report LoRA-50 as a performance improvement. The useful result is that the project now has an end-to-end LoRA workflow: RLDS data loading, LoRA adapter insertion, metric logging, adapter and merged-model saving, model loading, OSMesa rollout evaluation, log packaging, and video artifact tracking.
-
-## Background
-
-OpenVLA is a Vision-Language-Action model for robot control. This project is intended to:
-
-- Reproduce OpenVLA inference evaluation on LIBERO manipulation tasks.
-- Prepare a small, controlled LoRA fine-tuning workflow.
-- Visualize predicted action sequences for analysis and presentation.
-- Keep environment reports, experiment notes, and resume-ready summaries in one place.
-
-## Project Phases
-
-- Phase 1: repository setup and environment check
-- Phase 2: OpenVLA environment setup
-- Phase 3: LIBERO evaluation
-- Phase 4: LoRA fine-tuning
-- Phase 5: action visualization and resume packaging
-
-## Local Environment Conclusion
-
-The Phase 1 report detected an NVIDIA GeForce RTX 4060 Laptop GPU with about 8GB VRAM and CPU-only PyTorch in the local environment. This machine is not recommended for running OpenVLA-7B inference, LIBERO evaluation, or LoRA fine-tuning.
-
-Use the local machine mainly for:
-
-- Code editing and repository management.
-- Reading official OpenVLA code.
-- Documentation and experiment planning.
-- Lightweight CSV action visualization.
-- Git/GitHub workflow.
-
-## Recommended Cloud GPU
-
-- Recommended starting point: A100 40GB or higher.
-- H800/A100 80GB is more suitable for OpenVLA LoRA experiments.
-- On this cloud instance, use OSMesa for LIBERO evaluation:
-
-```bash
-RENDER_BACKEND=osmesa \
-SAVE_VIDEO=1 \
-MAX_TASKS=3 \
-MAX_STEPS_PER_EPISODE=full \
-CHECKPOINT=/root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial \
-NUM_TRIALS_PER_TASK=3 \
-bash scripts/run_libero_eval.sh
-```
-
-## Environment Check
-
-Run:
-
-```bash
-bash scripts/check_env.sh
-```
-
-The report will be written to:
+## 项目结构
 
 ```text
-notes/environment_report.md
+.
+├── README.md
+├── scripts/
+│   ├── run_libero_eval.sh
+│   ├── run_lora_finetune.sh
+│   └── visualize_actions.py
+├── notes/
+│   ├── experiment_log.md
+│   ├── lora_plan.md
+│   ├── resume_bullets.md
+│   └── environment_report.md
+├── docs/
+│   ├── figures/
+│   └── media/
+└── artifacts/        # 本地保存日志包和 rollout MP4，Git 忽略
 ```
 
-## Cloud Run Order
+`artifacts/`、`data/`、`external/`、`results/lora_runs/`、`results/lora_adapters_tmp/` 等目录包含大文件、外部依赖或实验产物，不提交到 Git。
 
-On the Linux cloud GPU instance:
+## 复现实验说明
 
-```bash
-git clone <THIS_REPO_URL>
-cd openvla-libero-lora-demo
-python scripts/check_env.py
-bash scripts/setup_env.sh
-RENDER_BACKEND=osmesa NUM_TRIALS_PER_TASK=1 bash scripts/run_libero_eval.sh
-```
+本项目的详细命令、环境检查、数据准备记录和实验日志保存在 `notes/` 目录中。README 只保留项目展示所需的关键信息。
 
-Then save the log path in:
+复现实验时应使用 Linux 云端 GPU 环境。当前验证环境为 H800 80GB，本地 RTX 4060 Laptop 8GB 只用于代码开发、文档整理、可视化和 Git 管理，不建议运行 OpenVLA-7B 推理或 LoRA 微调。
 
-```text
-notes/experiment_log.md
-```
+复现实验前需要自行准备或确认：
 
-Commit notes only after reviewing what was actually run. Do not commit checkpoints, Hugging Face cache, external repositories, or rollout videos.
+- 官方 OpenVLA / LIBERO 依赖环境；
+- official LIBERO-Spatial checkpoint；
+- `libero_spatial_no_noops` RLDS/TFDS 数据；
+- OSMesa 渲染路径；
+- 足够的磁盘空间用于 checkpoint、adapter 和 merged model。
 
-## LIBERO Evaluation
+## 简历表述
 
-The evaluation script defaults to the official LIBERO-Spatial checkpoint:
+可以谨慎表述为：
 
-```bash
-CHECKPOINT=openvla/openvla-7b-finetuned-libero-spatial
-TASK_SUITE=libero_spatial
-NUM_TRIALS_PER_TASK=1
-CENTER_CROP=True
-bash scripts/run_libero_eval.sh
-```
+> 搭建 OpenVLA + LIBERO 机器人 VLA 评估与小规模 LoRA 微调流程，在 H800 云端环境中完成 official LIBERO-Spatial checkpoint 的 OSMesa rollout baseline，并基于 LIBERO-Spatial RLDS 数据完成 LoRA adapter 插入、训练指标记录、checkpoint 保存、merged model 加载和评估闭环；记录 official baseline `9/9` 与 LoRA-50 `8/9` 的小规模对比结果，并分析失败 rollout 对策略扰动的提示。
 
-The first real run may download the selected Hugging Face checkpoint. Do this only on a suitable Linux cloud GPU. For this project, the validated cloud path uses `RENDER_BACKEND=osmesa`.
+不应表述为：
 
-## LoRA Template
-
-The LoRA script is a conservative template and should not be used for long training until the dataset and dry-run plan are confirmed:
-
-```bash
-CONFIRM_TRAIN=YES \
-DATA_ROOT_DIR=data/rlds \
-DATASET_NAME=libero_spatial_no_noops \
-bash scripts/run_lora_finetune.sh
-```
-
-Before training, confirm that the dataset exists and that the dataset name is registered in OpenVLA's RLDS dataloader.
-
-## Action Visualization
-
-Visualize a fake action sequence:
-
-```bash
-python scripts/visualize_actions.py
-```
-
-Or visualize a CSV with fields `step,dx,dy,dz,droll,dpitch,dyaw,gripper`:
-
-```bash
-python scripts/visualize_actions.py --input path/to/actions.csv
-```
-
-Outputs:
-
-```text
-results/figures/action_xyz_curve.png
-results/figures/action_rotation_curve.png
-results/figures/gripper_curve.png
-```
-
-## Safety Notes
-
-Current repository scripts do not automatically download large models.
-
-Current repository scripts do not automatically download large datasets.
-
-Current repository scripts do not automatically run training.
-
-Large downloads, LIBERO setup, OpenVLA checkpoints, and training commands should only be added after explicit confirmation.
-
-Do not download BridgeData V2 at the start of this project.
-
-Do not start with LoRA training.
-
-Do not force OpenVLA-7B to run on the local 8GB GPU.
-
-## TODO
-
-- [x] Create repository skeleton.
-- [x] Add repeatable environment check.
-- [x] Confirm target Python version and package manager for cloud setup.
-- [x] Add official OpenVLA setup command template.
-- [x] Add LIBERO installation dependency template.
-- [x] Add small debug evaluation command template.
-- [x] Add LoRA fine-tuning command template with conservative defaults.
-- [x] Add action visualization utilities.
-- [x] Stabilize official checkpoint LIBERO evaluation with OSMesa.
-- [x] Record official checkpoint OSMesa baseline.
-- [ ] Inspect LoRA training entry point, dataset requirements, memory budget, and dry-run plan.
-- [ ] Prepare resume-ready final package after LoRA or additional evaluation is actually completed.
+- LoRA 提升了模型性能；
+- 完整复现了 OpenVLA 官方训练结果；
+- 完成了真机机器人部署；
+- 完成了大规模训练。
