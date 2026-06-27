@@ -527,3 +527,73 @@ Download or prepare official modified LIBERO RLDS data from openvla/modified_lib
 ```
 
 Prefer starting with `libero_spatial_no_noops` only if selective Git LFS download is confirmed.
+
+## 13. Spatial RLDS Data Prepared
+
+Date: 2026-06-27.
+
+The project prepared only the LIBERO-Spatial RLDS data needed for the first tiny LoRA dry-run. No LoRA training was started.
+
+Download method:
+
+- Remote did not have `git-lfs`, so Git LFS selective pull was not available.
+- Used `huggingface_hub.snapshot_download` with:
+
+```text
+repo_id="openvla/modified_libero_rlds"
+repo_type="dataset"
+allow_patterns=["libero_spatial_no_noops/**"]
+local_dir="/root/autodl-tmp/openvla-libero-lora-demo/data/rlds"
+HF_ENDPOINT=https://hf-mirror.com
+```
+
+Downloaded target:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/data/rlds/libero_spatial_no_noops
+```
+
+Downloaded contents:
+
+- `dataset_info.json`
+- `features.json`
+- `16` TFRecord shards:
+
+```text
+libero_spatial-train.tfrecord-00000-of-00016
+...
+libero_spatial-train.tfrecord-00015-of-00016
+```
+
+Size:
+
+```text
+data/rlds: about 1.8GB
+```
+
+TFDS metadata check:
+
+```text
+TFDS builder name: libero_spatial
+TFDS version: 1.0.0
+Splits: train
+Train examples: 432
+```
+
+Selective download check:
+
+```text
+Non-spatial TFRecord count under data/rlds: 0
+```
+
+Disk after download:
+
+```text
+/root/autodl-tmp: about 134GB available
+```
+
+Next step:
+
+- Run the no-save LoRA smoke dry-run only after explicit confirmation.
+- First dry-run should use `max_steps=2`, `save_steps=1000`, `batch_size=1`, and `image_aug=False`.
+- Do not run save-enabled adapter dry-run until the no-save smoke run succeeds.
