@@ -6,8 +6,9 @@ This repository is a robotics research portfolio project for reproducing OpenVLA
 
 - Phase 1 completed: repository setup and local environment check.
 - Phase 2 completed: cloud setup scripts, official OpenVLA notes, LIBERO evaluation templates, LoRA templates, and action visualization utilities.
-- Phase 3 in progress: official checkpoint LIBERO baseline evaluation.
-- LoRA fine-tuning has not started.
+- Phase 3 completed: official checkpoint LIBERO-Spatial OSMesa baseline evaluation.
+- Phase 4 completed at small scale: LoRA-50 training, checkpoint saving, merged model loading, and OSMesa evaluation loop.
+- Current recommendation: pause larger training, inspect the LoRA-50 failure case, and tune conservatively before any longer run.
 
 ## Experiment Progress
 
@@ -21,7 +22,36 @@ This repository is a robotics research portfolio project for reproducing OpenVLA
   - No native abort, EGL, or `read_pixels` crash in the OSMesa baseline runs.
   - Rollout MP4 files were saved under `artifacts/rollouts/`.
 - Current baseline log bundle: `artifacts/openvla_official_baseline_logs_latest.tar.gz`.
-- Next step: inspect LoRA training entry points, LIBERO demonstration data requirements, memory budget, and dry-run plan before starting any training.
+- LoRA-50 small training completed on top of the official LIBERO-Spatial checkpoint:
+  - `max_steps=50`, `batch_size=4`, `lora_rank=32`, `learning_rate=5e-4`, `image_aug=True`.
+  - Adapter saved remotely, about `463M`.
+  - Merged HuggingFace model saved remotely, about `15G`.
+  - `1 task x 1 trial`: `1/1` success, `83` action steps.
+  - `3 tasks x 3 trials`: `8/9` success.
+  - No OOM, CUDA crash, native abort, `read_pixels`, traceback, or core dump occurred.
+- Current LoRA-50 log bundle: `artifacts/openvla_lora50_pipeline_logs_latest.tar.gz`.
+- Latest rollout MP4 files are kept locally under `artifacts/rollouts/` and are intentionally ignored by Git.
+
+## LoRA-50 Results
+
+This LoRA experiment is a small workflow validation run on top of the official LIBERO-Spatial checkpoint. It is not a full fine-tuning reproduction from the base OpenVLA checkpoint.
+
+| Model / run | Training setting | Evaluation setting | Result | Interpretation |
+| --- | --- | --- | --- | --- |
+| Official checkpoint baseline | Official `openvla-7b-finetuned-libero-spatial` | `libero_spatial`, OSMesa, `3 tasks x 3 trials` | `9/9` success | Reference baseline for this project |
+| LoRA-50 | `max_steps=50`, `batch_size=4`, `lora_rank=32`, `learning_rate=5e-4`, `image_aug=True` | Same 3-task OSMesa subset | `8/9` success | Completed LoRA training/saving/loading/eval loop, but did not exceed the official baseline |
+
+LoRA-50 per-task result:
+
+| Task | Success rate | Action steps |
+| --- | --- | --- |
+| Pick up the black bowl between the plate and the ramekin and place it on the plate | `3/3` | 83, 74, 89 |
+| Pick up the black bowl next to the ramekin and place it on the plate | `3/3` | 112, 115, 132 |
+| Pick up the black bowl from table center and place it on the plate | `2/3` | 220, 115, 96 |
+
+Episode 7 in the LoRA-50 `3 tasks x 3 trials` run is the failure case: task 3, trial 1, `success=False`, 220 action steps. This should be analyzed before increasing training length.
+
+Do not report LoRA-50 as a performance improvement. The useful result is that the project now has an end-to-end LoRA workflow: RLDS data loading, LoRA adapter insertion, metric logging, adapter and merged-model saving, model loading, OSMesa rollout evaluation, log packaging, and video artifact tracking.
 
 ## Background
 

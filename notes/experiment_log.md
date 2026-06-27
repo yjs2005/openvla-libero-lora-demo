@@ -135,3 +135,58 @@ These runs are smoke tests for the fine-tuning pipeline. They do not demonstrate
 - Stability: no native abort, `read_pixels`, OOM, CUDA crash, segmentation fault, or core dump occurred.
 
 This evaluation only verifies that the saved 2-step smoke model can be loaded and rolled out. It should not be reported as a LoRA performance improvement.
+
+## 2026-06-27 50-step LoRA small training and evaluation
+
+- Machine / GPU: AutoDL cloud instance, NVIDIA H800 PCIe 80GB.
+- Base checkpoint: `/root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial`.
+- Dataset: `libero_spatial_no_noops`.
+- Training entry: `external/openvla/vla-scripts/finetune.py`.
+- Training setting: `max_steps=50`, `save_steps=50`, `batch_size=4`, `grad_accumulation_steps=1`, `learning_rate=5e-4`, `lora_rank=32`, `lora_dropout=0.0`, `image_aug=True`.
+- Trainable parameters: `110,828,288 / 7,652,065,472 = 1.4483%`.
+- Adapter output: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b4+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_lora50--image_aug`, size `463M`.
+- Merged model output: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b4+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_lora50--image_aug`, size `15G`.
+- Training log: `results/logs/lora_spatial_50steps.log`.
+
+Final representative training metrics:
+
+| Step | Loss | Action accuracy | Action L1 loss |
+| --- | --- | --- | --- |
+| 43 | 0.696080 | 0.928571 | 0.020448 |
+| 44 | 1.438865 | 0.892857 | 0.010644 |
+| 45 | 1.086499 | 0.857143 | 0.028011 |
+| 46 | 2.133811 | 0.821429 | 0.018207 |
+| 47 | 0.245641 | 0.964286 | 0.001120 |
+| 48 | 0.383422 | 0.857143 | 0.006723 |
+| 49 | 0.518494 | 0.892857 | 0.009244 |
+| 50 | 1.334518 | 0.892857 | 0.000840 |
+
+### LoRA-50 evaluation
+
+Renderer: OSMesa.
+
+`1 task x 1 trial`:
+
+| Episode | Success | Action steps |
+| --- | --- | --- |
+| 1 | True | 83 |
+
+`3 tasks x 3 trials`:
+
+| Task | Episodes | Success rate | Action steps |
+| --- | --- | --- | --- |
+| Pick up the black bowl between the plate and the ramekin and place it on the plate | 3 | `3/3` | 83, 74, 89 |
+| Pick up the black bowl next to the ramekin and place it on the plate | 3 | `3/3` | 112, 115, 132 |
+| Pick up the black bowl from table center and place it on the plate | 3 | `2/3` | 220, 115, 96 |
+
+Overall success rate: `8/9 = 88.9%`.
+
+Stability: no OOM, CUDA crash, native abort, `read_pixels`, segmentation fault, core dump, or Python traceback occurred.
+
+Comparison:
+
+- Official checkpoint baseline on the same 3-task subset: `9/9`.
+- LoRA-50 on the same 3-task subset: `8/9`.
+- This run should be described as a small-scale LoRA workflow validation, not as a performance improvement.
+- Failure case: episode 7, task "pick up the black bowl from table center and place it on the plate", `success=False`, 220 action steps. Inspect this rollout video before expanding training.
+- Next recommendation: pause larger training; if continuing, prefer a lower learning rate before increasing to 200 steps.

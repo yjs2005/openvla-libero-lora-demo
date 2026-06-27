@@ -804,3 +804,150 @@ Conclusion:
 
 - Stage 3 passed: the saved smoke merged model can be loaded and evaluated with the stable OSMesa LIBERO path.
 - Next recommended step is a controlled 50-step LoRA small training run, followed first by `1 task x 1 trial` evaluation before any wider comparison.
+
+## 17. 50-Step LoRA Fine-Tuning
+
+Date: 2026-06-27.
+
+Scope:
+
+- This is a small LoRA-on-official-LIBERO-checkpoint run.
+- It is not a full OpenVLA fine-tuning reproduction from the base OpenVLA checkpoint.
+- It is intended to validate the training and evaluation loop, not to claim performance improvement.
+
+Training configuration:
+
+```text
+vla_path: /root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial
+dataset_name: libero_spatial_no_noops
+data_root_dir: /root/autodl-tmp/openvla-libero-lora-demo/data/rlds
+max_steps: 50
+save_steps: 50
+batch_size: 4
+grad_accumulation_steps: 1
+learning_rate: 5e-4
+lora_rank: 32
+lora_dropout: 0.0
+image_aug: True
+save_latest_checkpoint_only: True
+```
+
+Training result:
+
+- Stage 4 completed.
+- The run reached `max_steps=50`.
+- Trainable parameters: `110,828,288 / 7,652,065,472 = 1.4483%`.
+- No OOM, CUDA crash, protobuf crash, or disk error occurred.
+- Adapter was saved.
+- A merged HuggingFace model was saved.
+
+Final representative metrics from `results/logs/lora_spatial_50steps.log`:
+
+```text
+[TRAIN_METRICS] step=43 loss=0.696080 action_accuracy=0.928571 action_l1_loss=0.020448 lr=0.0005
+[TRAIN_METRICS] step=44 loss=1.438865 action_accuracy=0.892857 action_l1_loss=0.010644 lr=0.0005
+[TRAIN_METRICS] step=45 loss=1.086499 action_accuracy=0.857143 action_l1_loss=0.028011 lr=0.0005
+[TRAIN_METRICS] step=46 loss=2.133811 action_accuracy=0.821429 action_l1_loss=0.018207 lr=0.0005
+[TRAIN_METRICS] step=47 loss=0.245641 action_accuracy=0.964286 action_l1_loss=0.001120 lr=0.0005
+[TRAIN_METRICS] step=48 loss=0.383422 action_accuracy=0.857143 action_l1_loss=0.006723 lr=0.0005
+[TRAIN_METRICS] step=49 loss=0.518494 action_accuracy=0.892857 action_l1_loss=0.009244 lr=0.0005
+[TRAIN_METRICS] step=50 loss=1.334518 action_accuracy=0.892857 action_l1_loss=0.000840 lr=0.0005
+```
+
+Outputs:
+
+```text
+Adapter:
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b4+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_lora50--image_aug
+Size: 463M
+
+Merged HF model:
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b4+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_lora50--image_aug
+Size: 15G
+```
+
+Lightweight load check:
+
+- `AutoConfig.from_pretrained(..., trust_remote_code=True)`: passed.
+- `AutoProcessor.from_pretrained(..., trust_remote_code=True)`: passed.
+- Config class: `OpenVLAConfig`.
+- Processor class: `PrismaticProcessor`.
+
+## 18. LoRA-50 OSMesa Evaluation
+
+Date: 2026-06-27.
+
+Evaluation settings:
+
+```text
+RENDER_BACKEND=osmesa
+SAVE_VIDEO=1
+MAX_STEPS_PER_EPISODE=full
+CHECKPOINT=<LoRA-50 merged HF model>
+```
+
+### 1 task x 1 trial
+
+- Result: completed.
+- Success: `True`.
+- Action steps: `83`.
+- No native abort, `read_pixels` error, OOM, CUDA crash, segmentation fault, or core dump occurred.
+- MP4:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_40_00--episode=1--success=True--task=pick_up_the_black_bowl_between_the_plate_and_the_r.mp4
+```
+
+### 3 tasks x 3 trials
+
+Overall result: `8/9` success.
+
+| Task | Episodes | Success rate | Action steps |
+| --- | --- | --- | --- |
+| Pick up the black bowl between the plate and the ramekin and place it on the plate | 3 | `3/3` | 83, 74, 89 |
+| Pick up the black bowl next to the ramekin and place it on the plate | 3 | `3/3` | 112, 115, 132 |
+| Pick up the black bowl from table center and place it on the plate | 3 | `2/3` | 220, 115, 96 |
+
+Per-episode outcome:
+
+| Episode | Task | Success | Action steps |
+| --- | --- | --- | --- |
+| 1 | black bowl between plate and ramekin -> plate | True | 83 |
+| 2 | black bowl between plate and ramekin -> plate | True | 74 |
+| 3 | black bowl between plate and ramekin -> plate | True | 89 |
+| 4 | black bowl next to ramekin -> plate | True | 112 |
+| 5 | black bowl next to ramekin -> plate | True | 115 |
+| 6 | black bowl next to ramekin -> plate | True | 132 |
+| 7 | black bowl from table center -> plate | False | 220 |
+| 8 | black bowl from table center -> plate | True | 115 |
+| 9 | black bowl from table center -> plate | True | 96 |
+
+Latest LoRA-50 rollout MP4 files:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_41_27--episode=9--success=True--task=pick_up_the_black_bowl_from_table_center_and_place.mp4
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_41_27--episode=8--success=True--task=pick_up_the_black_bowl_from_table_center_and_place.mp4
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_41_27--episode=7--success=False--task=pick_up_the_black_bowl_from_table_center_and_place.mp4
+```
+
+Stability:
+
+- No native abort.
+- No `read_pixels` error.
+- No OOM or CUDA crash.
+- No Python traceback.
+
+Comparison with official checkpoint baseline:
+
+- Official checkpoint baseline on the same 3-task subset: `9/9`.
+- LoRA-50 result on the same 3-task subset: `8/9`.
+- This does not show performance improvement. The tiny 50-step LoRA-on-official-checkpoint run likely perturbed the already fine-tuned policy on one trial.
+- The useful result is the completed training, checkpoint saving, OSMesa evaluation, logging, and rollout video loop.
+
+Next recommendation:
+
+- Pause larger training for now.
+- Review the episode 7 failure video before launching new runs.
+- Compare the failed rollout action sequence with successful task-3 rollouts.
+- If continuing experiments, first try a lower learning rate, for example `1e-4` or `5e-5`, instead of directly increasing to 200 steps.
+- Keep the same evaluation protocol so that any change is compared against both the official `9/9` baseline and the LoRA-50 `8/9` result.
