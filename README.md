@@ -5,7 +5,23 @@ This repository is a robotics research portfolio project for reproducing OpenVLA
 ## Current Status
 
 - Phase 1 completed: repository setup and local environment check.
-- Phase 2 in progress: official OpenVLA repository reading notes, Linux cloud GPU setup script, LIBERO smoke-test script, LoRA template, and action visualization.
+- Phase 2 completed: cloud setup scripts, official OpenVLA notes, LIBERO evaluation templates, LoRA templates, and action visualization utilities.
+- Phase 3 in progress: official checkpoint LIBERO baseline evaluation.
+- LoRA fine-tuning has not started.
+
+## Experiment Progress
+
+- H800 cloud OpenVLA + LIBERO environment setup completed.
+- Official `openvla-7b-finetuned-libero-spatial` checkpoint downloaded and loaded successfully on the cloud instance.
+- EGL rendering was unstable for longer rollouts, with native aborts around 51 action steps.
+- OSMesa rendering was verified as the stable evaluation path.
+- Official checkpoint OSMesa baseline completed on `libero_spatial`:
+  - `1 task x 3 trials`: `3/3` success.
+  - `3 tasks x 3 trials`: `9/9` success.
+  - No native abort, EGL, or `read_pixels` crash in the OSMesa baseline runs.
+  - Rollout MP4 files were saved under `artifacts/rollouts/`.
+- Current baseline log bundle: `artifacts/openvla_official_baseline_logs_latest.tar.gz`.
+- Next step: inspect LoRA training entry points, LIBERO demonstration data requirements, memory budget, and dry-run plan before starting any training.
 
 ## Background
 
@@ -39,9 +55,18 @@ Use the local machine mainly for:
 ## Recommended Cloud GPU
 
 - Recommended starting point: A100 40GB or higher.
-- A100 80GB is closer to the official LoRA example.
-- First cloud experiment should be the official LIBERO-Spatial checkpoint smoke test with `NUM_TRIALS_PER_TASK=1`.
-- Decide whether to run LoRA only after the smoke test, disk space, CUDA PyTorch setup, and dataset registration are confirmed.
+- H800/A100 80GB is more suitable for OpenVLA LoRA experiments.
+- On this cloud instance, use OSMesa for LIBERO evaluation:
+
+```bash
+RENDER_BACKEND=osmesa \
+SAVE_VIDEO=1 \
+MAX_TASKS=3 \
+MAX_STEPS_PER_EPISODE=full \
+CHECKPOINT=/root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial \
+NUM_TRIALS_PER_TASK=3 \
+bash scripts/run_libero_eval.sh
+```
 
 ## Environment Check
 
@@ -66,7 +91,7 @@ git clone <THIS_REPO_URL>
 cd openvla-libero-lora-demo
 python scripts/check_env.py
 bash scripts/setup_env.sh
-NUM_TRIALS_PER_TASK=1 bash scripts/run_libero_eval.sh
+RENDER_BACKEND=osmesa NUM_TRIALS_PER_TASK=1 bash scripts/run_libero_eval.sh
 ```
 
 Then save the log path in:
@@ -75,11 +100,11 @@ Then save the log path in:
 notes/experiment_log.md
 ```
 
-Commit the resulting logs/notes only after reviewing what was actually run.
+Commit notes only after reviewing what was actually run. Do not commit checkpoints, Hugging Face cache, external repositories, or rollout videos.
 
-## LIBERO Smoke Test
+## LIBERO Evaluation
 
-The smoke-test evaluation script defaults to:
+The evaluation script defaults to the official LIBERO-Spatial checkpoint:
 
 ```bash
 CHECKPOINT=openvla/openvla-7b-finetuned-libero-spatial
@@ -89,11 +114,11 @@ CENTER_CROP=True
 bash scripts/run_libero_eval.sh
 ```
 
-The first real run may download the selected Hugging Face checkpoint. Do this only on a suitable Linux cloud GPU.
+The first real run may download the selected Hugging Face checkpoint. Do this only on a suitable Linux cloud GPU. For this project, the validated cloud path uses `RENDER_BACKEND=osmesa`.
 
 ## LoRA Template
 
-The LoRA script is a conservative template and does not start training unless explicitly confirmed:
+The LoRA script is a conservative template and should not be used for long training until the dataset and dry-run plan are confirmed:
 
 ```bash
 CONFIRM_TRAIN=YES \
@@ -138,8 +163,6 @@ Large downloads, LIBERO setup, OpenVLA checkpoints, and training commands should
 
 Do not download BridgeData V2 at the start of this project.
 
-Do not start with full LIBERO evaluation.
-
 Do not start with LoRA training.
 
 Do not force OpenVLA-7B to run on the local 8GB GPU.
@@ -154,5 +177,7 @@ Do not force OpenVLA-7B to run on the local 8GB GPU.
 - [x] Add small debug evaluation command template.
 - [x] Add LoRA fine-tuning command template with conservative defaults.
 - [x] Add action visualization utilities.
-- [ ] Record all experiments in `notes/experiment_log.md`.
-- [ ] Prepare resume-ready bullets in `notes/resume_bullets.md`.
+- [x] Stabilize official checkpoint LIBERO evaluation with OSMesa.
+- [x] Record official checkpoint OSMesa baseline.
+- [ ] Inspect LoRA training entry point, dataset requirements, memory budget, and dry-run plan.
+- [ ] Prepare resume-ready final package after LoRA or additional evaluation is actually completed.

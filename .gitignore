@@ -30,11 +30,17 @@ datasets/
 checkpoints/
 models/
 external/
+hf_cache/
+openvla_checkpoints/
+rollouts/
 .hf_token
 *.ckpt
 *.pt
 *.pth
 *.safetensors
+*.bin
+artifacts/**/*.mp4
+artifacts/**/*.tar.gz
 
 # OS and editor
 .DS_Store
