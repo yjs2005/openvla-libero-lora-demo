@@ -306,3 +306,224 @@ Do not commit:
 - `*.bin`
 - rollout MP4 files
 - large log archives
+
+## 12. Data Preparation Check
+
+Date: 2026-06-27.
+
+### Summary
+
+- `libero_spatial_no_noops` is already registered in the OpenVLA dataloader.
+- The current remote project does not contain any usable RLDS/TFDS training data.
+- The official source for modified LIBERO RLDS data is the Hugging Face dataset repository:
+
+```text
+git@hf.co:datasets/openvla/modified_libero_rlds
+```
+
+- The OpenVLA README states that this repository contains modified LIBERO-Spatial, LIBERO-Object, LIBERO-Goal, and LIBERO-10 datasets in RLDS format, about 10GB total.
+- Do not download this dataset until the target path and expected disk use are explicitly confirmed.
+
+### Registration Locations
+
+`libero_spatial_no_noops` is registered in three places:
+
+```text
+external/openvla/prismatic/vla/datasets/rlds/oxe/configs.py
+external/openvla/prismatic/vla/datasets/rlds/oxe/mixtures.py
+external/openvla/prismatic/vla/datasets/rlds/oxe/transforms.py
+```
+
+The relevant registered LIBERO dataset names are:
+
+```text
+libero_spatial_no_noops
+libero_object_no_noops
+libero_goal_no_noops
+libero_10_no_noops
+```
+
+### Expected Data Layout
+
+`vla-scripts/finetune.py` passes `data_root_dir` and `dataset_name` into `RLDSDataset`.
+
+`RLDSDataset` uses the OXE materializer, which expects `data_root_dir` to be the base directory containing TFDS/RLDS dataset subdirectories. For this project, the recommended target is:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/data/rlds/libero_spatial_no_noops
+```
+
+The dry-run command should use:
+
+```text
+--data_root_dir /root/autodl-tmp/openvla-libero-lora-demo/data/rlds
+--dataset_name libero_spatial_no_noops
+```
+
+### Raw Demonstrations And Regeneration
+
+`external/openvla/experiments/robot/libero/regenerate_libero_dataset.py` regenerates raw LIBERO HDF5 demonstrations:
+
+```text
+input:  raw LIBERO HDF5 directory, such as ./LIBERO/libero/datasets/libero_spatial
+output: no-op-filtered HDF5 directory, such as ./LIBERO/libero/datasets/libero_spatial_no_noops
+```
+
+The script notes that HDF5-to-RLDS conversion is not included there. The OpenVLA README points to `https://github.com/moojink/rlds_dataset_builder` for the conversion code. Therefore, for this project, the simplest path is to use the official preconverted `openvla/modified_libero_rlds` dataset rather than regenerating and converting from raw HDF5.
+
+### Tiny Subset Feasibility
+
+There is no confirmed official tiny-subset download path in the local OpenVLA code. A tiny subset is possible only if it preserves a valid TFDS/RLDS directory structure and statistics. MP4 rollout files and raw HDF5 files are not valid inputs to `vla-scripts/finetune.py`.
+
+Practical recommendation:
+
+- First download or prepare only the `libero_spatial_no_noops` RLDS data if the repository layout allows selective Git LFS pulling.
+- Use `max_steps=2`, `batch_size=1`, and a small `shuffle_buffer_size` for the first dry-run.
+- Do not use BridgeData V2 for the first LoRA dry-run.
+
+### Current Remote Data State
+
+Checked remote project:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/data
+```
+
+Current state:
+
+- `data/` exists.
+- `data/libero_datasets/datasets` exists but is empty.
+- `data/rlds/libero_spatial_no_noops` does not exist.
+- No files were found under `data/` at max depth 5.
+- `du -sh data` reports 0.
+
+Disk state:
+
+```text
+/root/autodl-tmp: 150GB total, 15GB used, 136GB available
+```
+
+The current disk is sufficient for the official modified LIBERO RLDS data as described by OpenVLA (~10GB total), plus small dry-run outputs. It is not a reason to download without confirmation.
+
+### Wandb Patch Status
+
+Remote file patched:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/vla-scripts/finetune.py
+```
+
+Patch behavior:
+
+- Replaced top-level `import wandb` with a safe import.
+- If `wandb` import fails, it prints a warning and sets `wandb = None`.
+- Guarded `wandb.init(...)` and `wandb.log(...)` behind `wandb is not None`.
+- This preserves `WANDB_MODE=disabled` compatibility and avoids failing before a dry-run starts.
+
+Verification:
+
+```text
+python -m py_compile vla-scripts/finetune.py
+```
+
+Result: passed.
+
+### Dry-Run Status
+
+Current dry-run status:
+
+```text
+Not executable yet.
+```
+
+Reason:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/data/rlds/libero_spatial_no_noops
+```
+
+does not exist.
+
+### No-Save Smoke Dry-Run Command Draft
+
+Do not run until `libero_spatial_no_noops` exists.
+
+```bash
+cd /root/autodl-tmp/openvla-libero-lora-demo/external/openvla
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate openvla
+
+export HF_ENDPOINT=https://hf-mirror.com
+export HF_HOME=/root/autodl-tmp/hf_cache
+export TRANSFORMERS_CACHE=/root/autodl-tmp/hf_cache
+export HF_DATASETS_CACHE=/root/autodl-tmp/hf_cache
+export TOKENIZERS_PARALLELISM=false
+export TF_ENABLE_ONEDNN_OPTS=0
+export WANDB_MODE=disabled
+
+torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/finetune.py \
+  --vla_path /root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial \
+  --data_root_dir /root/autodl-tmp/openvla-libero-lora-demo/data/rlds \
+  --dataset_name libero_spatial_no_noops \
+  --run_root_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs \
+  --adapter_tmp_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp \
+  --batch_size 1 \
+  --grad_accumulation_steps 1 \
+  --max_steps 2 \
+  --save_steps 1000 \
+  --learning_rate 5e-4 \
+  --lora_rank 32 \
+  --lora_dropout 0.0 \
+  --image_aug False \
+  --shuffle_buffer_size 1000 \
+  --run_id_note libero_spatial_no_save_smoke
+```
+
+This command is intended to validate data loading, model loading, LoRA insertion, forward pass, backward pass, and optimizer steps without writing a large merged checkpoint.
+
+### Save-Enabled Adapter Dry-Run Command Draft
+
+Do not run until the no-save smoke run succeeds. This may write a large merged checkpoint directory.
+
+```bash
+cd /root/autodl-tmp/openvla-libero-lora-demo/external/openvla
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate openvla
+
+export HF_ENDPOINT=https://hf-mirror.com
+export HF_HOME=/root/autodl-tmp/hf_cache
+export TRANSFORMERS_CACHE=/root/autodl-tmp/hf_cache
+export HF_DATASETS_CACHE=/root/autodl-tmp/hf_cache
+export TOKENIZERS_PARALLELISM=false
+export TF_ENABLE_ONEDNN_OPTS=0
+export WANDB_MODE=disabled
+
+torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/finetune.py \
+  --vla_path /root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial \
+  --data_root_dir /root/autodl-tmp/openvla-libero-lora-demo/data/rlds \
+  --dataset_name libero_spatial_no_noops \
+  --run_root_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs \
+  --adapter_tmp_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp \
+  --batch_size 1 \
+  --grad_accumulation_steps 1 \
+  --max_steps 2 \
+  --save_steps 1 \
+  --learning_rate 5e-4 \
+  --lora_rank 32 \
+  --lora_dropout 0.0 \
+  --image_aug True \
+  --shuffle_buffer_size 1000 \
+  --save_latest_checkpoint_only True \
+  --run_id_note libero_spatial_save_smoke
+```
+
+### Next Required Confirmation
+
+Before any dry-run, confirm the data preparation action:
+
+```text
+Download or prepare official modified LIBERO RLDS data from openvla/modified_libero_rlds into:
+/root/autodl-tmp/openvla-libero-lora-demo/data/rlds
+```
+
+Prefer starting with `libero_spatial_no_noops` only if selective Git LFS download is confirmed.
