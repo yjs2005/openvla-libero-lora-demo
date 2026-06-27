@@ -597,3 +597,210 @@ Next step:
 - Run the no-save LoRA smoke dry-run only after explicit confirmation.
 - First dry-run should use `max_steps=2`, `save_steps=1000`, `batch_size=1`, and `image_aug=False`.
 - Do not run save-enabled adapter dry-run until the no-save smoke run succeeds.
+
+## 14. No-Save LoRA Smoke Dry-Run
+
+Date: 2026-06-27.
+
+Purpose:
+
+- Validate RLDS/TFDS data loading.
+- Validate model loading from the local official LIBERO-Spatial checkpoint.
+- Validate LoRA adapter insertion.
+- Validate forward pass, backward pass, and optimizer update.
+- Avoid saving LoRA adapters or merged model checkpoints.
+
+Command summary:
+
+```text
+torchrun vla-scripts/finetune.py
+--vla_path /root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial
+--data_root_dir /root/autodl-tmp/openvla-libero-lora-demo/data/rlds
+--dataset_name libero_spatial_no_noops
+--batch_size 1
+--grad_accumulation_steps 1
+--max_steps 2
+--save_steps 1000
+--learning_rate 5e-4
+--lora_rank 32
+--lora_dropout 0.0
+--image_aug False
+```
+
+Result:
+
+- Stage 1 no-save dry-run succeeded.
+- Stage 1b metrics rerun succeeded after patching `finetune.py` to print metrics to stdout.
+- Trainable parameters: `110,828,288 / 7,652,065,472 = 1.4483%`.
+- The run reached the `max_steps=2` stop condition. The official script prints steps `0`, `1`, and `2` because the stop condition is checked after the optimizer update.
+- No OOM occurred.
+- The `wandb` protobuf import problem did not crash training because `wandb` is safely disabled.
+- No `.safetensors` or `.bin` checkpoint was written in the no-save rerun.
+- Only small `dataset_statistics.json` files were present under the no-save run directories.
+
+Metrics from `results/logs/lora_no_save_metrics.log`:
+
+```text
+[TRAIN_METRICS] step=0 loss=0.000183 action_accuracy=1.000000 action_l1_loss=0.000000 lr=0.0005
+[TRAIN_METRICS] step=1 loss=0.004093 action_accuracy=1.000000 action_l1_loss=0.000000 lr=0.0005
+[TRAIN_METRICS] step=2 loss=0.603366 action_accuracy=0.857143 action_l1_loss=0.001120 lr=0.0005
+```
+
+Interpretation:
+
+- This is a pipeline smoke test, not a performance claim.
+- It confirms that data loading, model loading, LoRA insertion, backward pass, and optimizer update are connected.
+- It does not produce an adapter or a model artifact for evaluation.
+
+## 15. Save-Enabled LoRA Smoke Dry-Run
+
+Date: 2026-06-27.
+
+Purpose:
+
+- Verify that the official fine-tuning script can save LoRA adapter weights.
+- Verify whether the script also writes a merged HuggingFace model directory.
+- Keep the run tiny with `max_steps=2`; do not treat this as real fine-tuning.
+
+Command summary:
+
+```text
+torchrun vla-scripts/finetune.py
+--vla_path /root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial
+--data_root_dir /root/autodl-tmp/openvla-libero-lora-demo/data/rlds
+--dataset_name libero_spatial_no_noops
+--run_root_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs
+--adapter_tmp_dir /root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp
+--batch_size 1
+--grad_accumulation_steps 1
+--max_steps 2
+--save_steps 1
+--learning_rate 5e-4
+--lora_rank 32
+--lora_dropout 0.0
+--image_aug False
+--save_latest_checkpoint_only True
+--run_id_note libero_spatial_save_smoke
+```
+
+Result:
+
+- Save-enabled dry-run succeeded.
+- Trainable parameters: `110,828,288 / 7,652,065,472 = 1.4483%`.
+- The script saved at Step 1 and Step 2 because `save_steps=1`; `save_latest_checkpoint_only=True` kept one output directory.
+- Adapter was saved.
+- A merged HuggingFace model directory was also saved.
+- No OOM, CUDA crash, or wandb/protobuf crash occurred.
+
+Metrics from `results/logs/lora_save_smoke.log`:
+
+```text
+[TRAIN_METRICS] step=0 loss=0.014726 action_accuracy=1.000000 action_l1_loss=0.000000 lr=0.0005
+[TRAIN_METRICS] step=1 loss=0.007564 action_accuracy=1.000000 action_l1_loss=0.000000 lr=0.0005
+[TRAIN_METRICS] step=2 loss=1.159093 action_accuracy=0.857143 action_l1_loss=0.085154 lr=0.0005
+```
+
+Outputs:
+
+```text
+Adapter:
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke
+Size: 463M
+
+Merged HF model:
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke
+Size: 15G
+```
+
+Checkpoint files observed:
+
+```text
+adapter_config.json
+adapter_model.safetensors
+config.json
+model.safetensors.index.json
+model-00001-of-00004.safetensors
+model-00002-of-00004.safetensors
+model-00003-of-00004.safetensors
+model-00004-of-00004.safetensors
+```
+
+Next step:
+
+- Stage 3 should be a minimal OSMesa evaluation of the saved smoke model: `1 task x 1 trial`.
+- Do not start 50-step LoRA training until the saved smoke model can be loaded and evaluated.
+- Do not download or commit the `results/lora_runs` or `results/lora_adapters_tmp` directories.
+
+## 16. Save-Smoke Model Evaluation
+
+Date: 2026-06-27.
+
+Purpose:
+
+- Verify that the save-enabled LoRA smoke run produced a merged HuggingFace model that can be loaded by the LIBERO evaluation path.
+- Run only `1 task x 1 trial` with OSMesa.
+- Do not interpret this as a meaningful LoRA performance result, because the model came from a 2-step dry-run.
+
+Merged model:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke
+```
+
+Adapter:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke
+```
+
+Lightweight load check:
+
+- `config.json`: present.
+- `model.safetensors.index.json`: present.
+- Model shards: present.
+- `dataset_statistics.json`: present.
+- Tokenizer and processor files: present.
+- `AutoConfig.from_pretrained(..., trust_remote_code=True)`: passed.
+- `AutoProcessor.from_pretrained(..., trust_remote_code=True)`: passed.
+- Config class: `OpenVLAConfig`.
+- Processor class: `PrismaticProcessor`.
+
+Evaluation settings:
+
+```text
+RENDER_BACKEND=osmesa
+SAVE_VIDEO=1
+MAX_TASKS=1
+NUM_TRIALS_PER_TASK=1
+MAX_STEPS_PER_EPISODE=full
+CHECKPOINT=<merged model path>
+```
+
+Result:
+
+- Stage 3 evaluation completed.
+- The merged model loaded successfully.
+- Evaluation entered `Task suite: libero_spatial`.
+- Task: pick up the black bowl between the plate and the ramekin and place it on the plate.
+- Episode success: `True`.
+- Action steps: `74`.
+- Rollout MP4 was saved.
+- No native abort, `read_pixels` error, OOM, CUDA crash, segmentation fault, or core dump occurred.
+
+Rollout MP4:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_30_21--episode=1--success=True--task=pick_up_the_black_bowl_between_the_plate_and_the_r.mp4
+```
+
+Logs:
+
+```text
+/root/autodl-tmp/openvla-libero-lora-demo/results/logs/eval_lora_save_smoke_1task_1trial.log
+/root/autodl-tmp/openvla-libero-lora-demo/results/logs/libero_eval_20260627_163002.log
+```
+
+Conclusion:
+
+- Stage 3 passed: the saved smoke merged model can be loaded and evaluated with the stable OSMesa LIBERO path.
+- Next recommended step is a controlled 50-step LoRA small training run, followed first by `1 task x 1 trial` evaluation before any wider comparison.

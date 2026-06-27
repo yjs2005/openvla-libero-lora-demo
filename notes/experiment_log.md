@@ -78,3 +78,60 @@ Overall success rate: `9/9 = 100%`.
 No native abort, EGL, `read_pixels`, segmentation fault, or core dump occurred in the OSMesa baseline runs.
 
 This is the official checkpoint baseline and will be used as the reference point for later LoRA comparison.
+
+## 2026-06-27 LoRA smoke dry-runs
+
+- Machine / GPU: AutoDL cloud instance, NVIDIA H800 PCIe 80GB.
+- Base checkpoint: `/root/autodl-tmp/openvla_checkpoints/openvla-7b-finetuned-libero-spatial`.
+- Dataset: `libero_spatial_no_noops` RLDS/TFDS data under `/root/autodl-tmp/openvla-libero-lora-demo/data/rlds`.
+- Training entry: `external/openvla/vla-scripts/finetune.py`.
+- LoRA configuration: rank `32`, dropout `0.0`, batch size `1`, gradient accumulation `1`, learning rate `5e-4`, `image_aug=False`.
+- Trainable parameters: `110,828,288 / 7,652,065,472 = 1.4483%`.
+
+### No-save dry-run
+
+- Command intent: `max_steps=2`, `save_steps=1000`, no adapter or merged model output expected.
+- Result: completed; data loading, model loading, LoRA insertion, forward/backward pass, and optimizer update were verified.
+- Metrics:
+
+| Step | Loss | Action accuracy | Action L1 loss |
+| --- | --- | --- | --- |
+| 0 | 0.000183 | 1.000000 | 0.000000 |
+| 1 | 0.004093 | 1.000000 | 0.000000 |
+| 2 | 0.603366 | 0.857143 | 0.001120 |
+
+- Checkpoint output: no `.safetensors` or `.bin` files were written.
+- Log path: `results/logs/lora_no_save_metrics.log`.
+
+### Save-enabled dry-run
+
+- Command intent: `max_steps=2`, `save_steps=1`, verify save behavior only.
+- Result: completed; adapter and merged HuggingFace model were both saved.
+- Metrics:
+
+| Step | Loss | Action accuracy | Action L1 loss |
+| --- | --- | --- | --- |
+| 0 | 0.014726 | 1.000000 | 0.000000 |
+| 1 | 0.007564 | 1.000000 | 0.000000 |
+| 2 | 1.159093 | 0.857143 | 0.085154 |
+
+- Adapter output: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke`, size `463M`.
+- Merged model output: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke`, size `15G`.
+- Log path: `results/logs/lora_save_smoke.log`.
+
+These runs are smoke tests for the fine-tuning pipeline. They do not demonstrate performance improvement over the official checkpoint baseline.
+
+## 2026-06-27 Save-smoke merged model evaluation
+
+- Machine / GPU: AutoDL cloud instance, NVIDIA H800 PCIe 80GB.
+- Model checkpoint: merged HuggingFace model from the 2-step save-enabled LoRA smoke run.
+- Checkpoint path: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_runs/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke`.
+- Adapter path: `/root/autodl-tmp/openvla-libero-lora-demo/results/lora_adapters_tmp/openvla-7b-finetuned-libero-spatial+libero_spatial_no_noops+b1+lr-0.0005+lora-r32+dropout-0.0--libero_spatial_save_smoke`.
+- Lightweight load check: `AutoConfig` and `AutoProcessor` both loaded successfully from the merged model directory.
+- Eval setting: `RENDER_BACKEND=osmesa`, `MAX_TASKS=1`, `NUM_TRIALS_PER_TASK=1`, `MAX_STEPS_PER_EPISODE=full`, `SAVE_VIDEO=1`.
+- Result: completed `1 task x 1 trial`; `success=True`; action steps: `74`.
+- Rollout MP4: `/root/autodl-tmp/openvla-libero-lora-demo/external/openvla/rollouts/2026_06_27/2026_06_27-16_30_21--episode=1--success=True--task=pick_up_the_black_bowl_between_the_plate_and_the_r.mp4`.
+- Log path: `results/logs/eval_lora_save_smoke_1task_1trial.log`.
+- Stability: no native abort, `read_pixels`, OOM, CUDA crash, segmentation fault, or core dump occurred.
+
+This evaluation only verifies that the saved 2-step smoke model can be loaded and rolled out. It should not be reported as a LoRA performance improvement.
